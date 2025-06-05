@@ -1,4 +1,5 @@
 #pragma once
+
 #include <random>
 #include <iostream>
 #include <cstring>
@@ -25,7 +26,7 @@ namespace MAG {
         }
     }
 
-    float* load_data(const char* filename, unsigned& num, unsigned& dim) {
+    inline float* load_data(const char* filename, unsigned& num, unsigned& dim) {
         std::ifstream in(filename, std::ios::binary);
         if (!in.is_open()) {
           std::cerr << "Open file error" << std::endl;
