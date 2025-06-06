@@ -88,6 +88,7 @@ namespace MAG {
       }
 
       void Load_nn_graph(const char *filename) {
+        /* k (k neighbor)| num * ( id + k * id)*/
         std::ifstream in(filename, std::ios::binary);
         unsigned k;
         in.read((char *)&k, sizeof(unsigned));
@@ -470,10 +471,15 @@ namespace MAG {
               sync_prune(n, pool, parameters, flags, cut_graph_);
             }
           }
+
+          std::cout << "sync prune done!" << std::endl;
+
         #pragma omp for schedule(dynamic, 100)
           for (unsigned n = 0; n < nd_; ++n) {
             InterInsert(n, range, locks, cut_graph_);
           }
+
+          std::cout << "inter insert done!" << std::endl;
         }
 
         std::vector<unsigned> pruneEdge(unsigned cur_point, const Parameters &parameters, std::vector<IpNeighbor> &pool, const unsigned threshold) {
@@ -488,10 +494,13 @@ namespace MAG {
                                             data_ + dimension_ * cur_point,
                                             (unsigned)dimension_);
           
+          // relaxed self-dominantor
           if (cur_ip >= pool[start].distance) {
             is_self_dominantor_[cur_point] = true;
           }
 
+          // The first threshold-th neighbors add to result directly with out check
+          // We assume it is self-dominantor
           while (start < pool.size() && real_m < threshold) {
             if (pool[start].id == cur_point) {
               start++;
@@ -508,6 +517,7 @@ namespace MAG {
             start++;      
           }
 
+          // For the rest neighbors, we check whether it is self-dominantor or not
           while (real_m < R_IP && (++start) < pool.size()) {
             if(pool[start].id == cur_point) {
               continue;
@@ -525,6 +535,8 @@ namespace MAG {
                 continue;
               }
               
+              // IPDG prune method
+              // <b, b> > <a, b>
               auto ip = distance_ip_->compare(data_ + dimension_ * p.id,
                                   data_ + dimension_ * nid,
                                   (unsigned)dimension_);
@@ -533,6 +545,8 @@ namespace MAG {
                 occlude = true;
                 break;
               }
+
+              // nid-th node is dominated by this candidate, so we remove it
               if (self_dist_map[nid] < ip && real_m > threshold) {
                 flags[nid] = true;
                 real_m--;
@@ -548,7 +562,7 @@ namespace MAG {
             if (prune_result.size() >= R_IP) {
               break;
             }
-            if (flags[result[i].id]) {
+            if (flags[result[i].id]) { // dominated by other nodes, remove it
               continue;
             }
             prune_result.push_back(result[i].id);
@@ -560,15 +574,17 @@ namespace MAG {
           std::string nn_graph_path = parameters.Get<std::string>("nn_graph_path");
           unsigned range = parameters.Get<unsigned>("R");
           unsigned threshold = parameters.Get<unsigned>("threshold");
+
           Load_nn_graph(nn_graph_path.c_str());
           data_ = data;
           init_graph(parameters);
           std::cout << "load nn graph!" << std::endl;
+
           SimpleNeighbor *cut_graph_ = new SimpleNeighbor[nd_ * (size_t)range];
           Link(parameters, cut_graph_);
           std::cout << "Link done!" << std::endl;
-          final_graph_.resize(nd_);
 
+          final_graph_.resize(nd_);
           for (size_t i = 0; i < nd_; i++) {
             SimpleNeighbor *pool = cut_graph_ + i * (size_t)range;
             unsigned pool_size = 0;
@@ -584,12 +600,13 @@ namespace MAG {
           }
 
           ip_graph_.resize(nd_);
-          
-          #pragma omp parallel
+
+#pragma omp parallel
           {
             std::vector<IpNeighbor> pool, tmp;
             boost::dynamic_bitset<> flags{nd_, 0};
-        #pragma omp for schedule(dynamic, 100)
+
+#pragma omp for schedule(dynamic, 100)
             for (unsigned n = 0; n < nd_; ++n) {
               pool.clear();
               tmp.clear();
@@ -598,6 +615,7 @@ namespace MAG {
               ip_graph_[n] = pruneEdge(n, parameters, pool, threshold);
             }
           }
+
           CompactGraph mix_graph;
           mix_graph.resize(nd_);
           for (size_t i = 0; i < nd_; i++) {
@@ -636,12 +654,16 @@ namespace MAG {
         void entry_point_candidate(float * data_) {
           entries.clear();
 
-          for (auto i = 0; i < nd_; i ++) {
+          for (auto i = 0; i < nd_; i++) {
+            // norm square
             float norm = distance_ip_->compare(data_ + dimension_ * (size_t)i,
                                               data_ + dimension_ * (size_t)i,
                                               (unsigned)dimension_);
             entries.emplace_back(norm, i);
           }
+
+          // descending order
+          // start search from the high norm area
           std::sort(entries.begin(), entries.end());
           std::reverse(entries.begin(), entries.end());
         }
@@ -708,9 +730,12 @@ namespace MAG {
           std::mt19937 rng(rand());
           GenRandom(rng, init_ids.data(), L, (unsigned)nd_);
 
+          // result from nn search
           for(unsigned i=0; i < L_NN; i++) {
             init_ids[i] = retset_nn[i].id;
           }
+
+          // high norm entrypoints
           for(unsigned i=L_NN; i < L ; i++) {
             if(entries[i].second <= nd_) {
               init_ids[i] = entries[i].second;  
