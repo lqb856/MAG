@@ -671,7 +671,7 @@ namespace MAG {
         int Search_NN_IP(const float *query, const float *x, size_t K,
                               const Parameters &parameters, unsigned *indices) {
           
-          const unsigned L_NN = 5;
+          const unsigned L_NN = parameters.Get<unsigned>("L_NN");
           std::vector<Neighbor> retset_nn(L_NN + 1);
           std::vector<unsigned> init_nn_ids(L_NN);
           boost::dynamic_bitset<> flags{nd_, 0};
