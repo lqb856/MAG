@@ -1,10 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
-project(MIPS)
+project(mag)
 
 set(CMAKE_CXX_STANDARD 17)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_SOURCE_DIR}/baselines)
 
 find_package(Boost REQUIRED)
 if (Boost_FOUND)
@@ -28,7 +27,13 @@ endif()
 # Compile flags
 
 add_subdirectory(test)
-
 add_definitions(-std=c++17 -O3 -lboost -ltcmalloc_minimal -lprofiler -march=native -Wall -DINFO -mavx)
+
+list(
+    APPEND CPP_SOURCES
+    ./src/index_map.cpp
+)
+add_library(${PROJECT_NAME} ${CPP_SOURCES})
+add_library(${PROJECT_NAME}_s STATIC ${CPP_SOURCES})
 
 

@@ -32,22 +32,43 @@ namespace MAG {
           std::cerr << "Open file error" << std::endl;
           exit(-1);
         }
-
-        std::cout << "Dim = " << dim << std::endl;
-        in.seekg(0, std::ios::end);
-        std::ios::pos_type ss = in.tellg();
-        size_t fsize = (size_t)ss;
-        num = (unsigned)(fsize / (dim) / 4);
+      
+        in.read((char*)&num, 4);
         std::cout<< "Num = " << num << std::endl;
+        
+        in.read((char*)&dim, 4);
+        std::cout << "Dim = " << dim << std::endl;
+      
         float* data = new float[(size_t)num * (size_t)dim];
-        in.seekg(0, std::ios::beg);
-        for (size_t i = 0; i < num; i++) {
-          in.read((char*)(data + i * dim), dim * sizeof(float));
-        }
+        in.read((char*)data, (size_t)num * (size_t)dim * sizeof(float));
         in.close();
-
+      
         return data;
+    }
+
+    unsigned* load_true_nn(const char* filename, unsigned& num, unsigned& k) {
+      std::ifstream in(filename, std::ios::binary);
+      if (!in.is_open()) {
+        throw std::runtime_error("Failed to open file");
       }
+    
+      unsigned num_u32 = 0, k_u32 = 0;
+    
+      // Read header
+      in.read(reinterpret_cast<char *>(&num_u32), sizeof(uint32_t));
+      in.read(reinterpret_cast<char *>(&k_u32), sizeof(uint32_t));
+    
+      num = num_u32;
+      k = k_u32;
+    
+      std::cout << "Loading " << num << " x " << k << " ground truth" << std::endl;
+    
+      // Allocate and read data
+      auto data = new unsigned[num * k];
+      in.read(reinterpret_cast<char *>(data), sizeof(int32_t) * num * k);
+      in.close();
+      return data;
+    }
 
     inline float* data_align(float* data_ori, unsigned point_num, unsigned& dim){
       #ifdef __GNUC__
